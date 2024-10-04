@@ -8,10 +8,11 @@ import {
   HttpStatus,
   UnauthorizedException,
   UseGuards,
+  Get,
 } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { Account } from '@prisma/client';
-import { Response } from 'express';
 import { UserPayload } from 'src/common/strategies/jwt-payload.interface';
 import { Confirm2FaDto } from './dto';
 import { ActiveUser } from 'src/common/decorators';
@@ -23,27 +24,24 @@ export class AuthController {
 
   @Post('confirm-2fa')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard) // Đảm bảo guard được sử dụng
+  @UseGuards(JwtAuthGuard)
   async confirm2fa(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
     @Body() confirm2faDto: Confirm2FaDto,
     @ActiveUser() currentUser: UserPayload,
   ) {
-    // Kiểm tra currentUser có phải là undefined không
     if (!currentUser) {
       throw new UnauthorizedException('User not found');
     }
-    const userAgent = request.headers['user-agent']; // Lấy thông tin user-agent từ request
-    console.log('User agent:', userAgent); // In ra thông tin user-agent
+    const userAgent = request.headers['user-agent'];
+    console.log('User agent:', userAgent);
 
-    console.log('Current user:', currentUser); // In ra thông tin người dùng hiện tại
     const { accessToken, refreshToken } = await this.authService.verifyTwoFa({
       currentUser,
       code: confirm2faDto.code,
     });
 
-    // Thiết lập cookie với accessToken và refreshToken bằng phương thức setTokensInCookies
     this.authService.setTokensInCookies(
       { accessToken, refreshToken },
       response,
@@ -70,5 +68,26 @@ export class AuthController {
     const tokens = await this.authService.login(email, password);
     this.authService.setTokensInCookies(tokens, response);
     return { message: 'Login successful' };
+  }
+
+  @Get('current')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async getCurrent(@ActiveUser('id') userId: string): Promise<UserPayload> {
+    const user = await this.authService.getCurrentUser(userId);
+    return user;
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    // Xóa cookie chứa token
+    this.authService.clearCookie({ request, response });
+
+    return { message: 'User logged out successfully' }; // Trả về thông báo thành công
   }
 }
