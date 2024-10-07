@@ -17,11 +17,35 @@ import { UserPayload } from 'src/common/strategies/jwt-payload.interface';
 import { Confirm2FaDto } from './dto';
 import { ActiveUser, Public } from 'src/common/decorators';
 import { JwtAuthGuard } from 'src/common/guards/authentication/authentication.guard';
-import { API_COMMON_MSG } from 'src/common/constants/default-message';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @UseGuards(JwtAuthGuard)
+  @Post('confirm-2fa')
+  @HttpCode(HttpStatus.OK)
+  async confirm2fa(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() confirm2faDto: Confirm2FaDto,
+    @ActiveUser() currentUser: UserPayload,
+  ) {
+    const userAgent = request.headers['user-agent'];
+    // Gọi hàm verifyTwoFa từ authService, truyền currentUser, code, và userAgent riêng biệt
+    const { accessToken, refreshToken } = await this.authService.verifyTwoFa(
+      { currentUser, code: confirm2faDto.code },
+      userAgent,
+    );
+
+    // Set access token và refresh token vào cookies
+    this.authService.setTokensInCookies(
+      { accessToken, refreshToken },
+      response,
+    );
+
+    return { message: '2FA confirmed successfully' };
+  }
 
   @Public()
   @Post('refresh-token')
@@ -52,34 +76,6 @@ export class AuthController {
     return { accessToken: accessToken, refreshToken: refreshToken };
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Post('confirm-2fa')
-  @HttpCode(HttpStatus.OK)
-  async confirm2fa(
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-    @Body() confirm2faDto: Confirm2FaDto,
-    @ActiveUser() currentUser: UserPayload,
-  ) {
-    if (!currentUser) {
-      throw new BadRequestException(API_COMMON_MSG.userNotFound);
-    }
-    const userAgent = request.headers['user-agent'];
-    console.log('User agent:', userAgent);
-
-    const { accessToken, refreshToken } = await this.authService.verifyTwoFa({
-      currentUser,
-      code: confirm2faDto.code,
-    });
-
-    this.authService.setTokensInCookies(
-      { accessToken, refreshToken },
-      response,
-    );
-
-    return { message: '2FA confirmed successfully' };
-  }
-
   @Post('register')
   async register(
     @Body('email') email: string,
@@ -91,13 +87,16 @@ export class AuthController {
 
   @Post('login')
   async login(
+    @Req() request: Request,
     @Body('email') email: string,
     @Body('password') password: string,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const tokens = await this.authService.login(email, password);
-    this.authService.setTokensInCookies(tokens, response);
-    return { tokens };
+    const userAgent = request.headers['user-agent'];
+    const result = await this.authService.login(email, password, userAgent);
+
+    this.authService.setTokensInCookies(result, response);
+    return { message: result.message };
   }
 
   @Get('current')
@@ -118,6 +117,6 @@ export class AuthController {
     // Xóa cookie chứa token
     this.authService.clearCookie({ request, response });
 
-    return { message: 'User logged out successfully' }; // Trả về thông báo thành công
+    return { message: 'User logged out successfully' };
   }
 }

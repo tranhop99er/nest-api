@@ -21,6 +21,8 @@ import {
 } from 'src/common/utils';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from 'jsonwebtoken';
+import { API_ERROR_MSG } from 'src/common/messages';
+// import * as jwt from 'jsonwebtoken';
 
 @Injectable()
 export class AuthService {
@@ -32,34 +34,17 @@ export class AuthService {
   ) {}
   private readonly ONE_WEEK = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
-  async login(email: string, password: string): Promise<Token> {
+  async login(
+    email: string,
+    password: string,
+    userAgent: string,
+  ): Promise<Token & { message: string }> {
     // Sử dụng phương thức validateAccount để tìm tài khoản
     const account = await this.validateAccount(email, password);
 
-    // Kiểm tra tài khoản có tồn tại và mật khẩu có chính xác
     if (!account) {
       throw new UnauthorizedException('Invalid credentials');
     }
-
-    // Generate and save 2FA code (or you can save in a more secure way if needed)
-    const twoFaCode = this.generate2FACode();
-
-    // Store the 2FA code temporarily in the database or in memory for validation
-    await this.prismaService.account.update({
-      where: { id: account.id },
-      data: { twoFaSecret: twoFaCode }, // Store temporarily (or use another mechanism)
-    });
-
-    // Send the 2FA code to the user's email using Handlebars template
-    await this.mailerService.sendMail({
-      to: account.email,
-      subject: 'Your 2FA Code',
-      template: 'confirm', // Name of your Handlebars template file (confirm.hbs)
-      context: {
-        role: account.role, // Pass user role to the template
-        code: twoFaCode, // Send the generated 2FA code
-      },
-    });
 
     // Tạo access token và refresh token
     const { accessToken, refreshToken } = this.signTokens(
@@ -68,48 +53,81 @@ export class AuthService {
       account.role,
     );
 
-    // Cập nhật refresh token vào cơ sở dữ liệu nếu cần
-    await this.prismaService.account.update({
-      where: { id: account.id },
-      data: { refreshToken },
+    // Kiểm tra xem thiết bị có tin cậy không
+    const isTrustedDevice = await this.checkTrustedDevice({
+      account,
+      userAgent,
     });
 
-    return { accessToken, refreshToken }; // Trả về token
+    // Nếu thiết bị không tin cậy hoặc thời gian xác thực cuối đã quá hạn 7 ngày
+    if (!isTrustedDevice) {
+      const twoFaCode = this.generate2FACode();
+
+      // Store the 2FA code temporarily in the database
+      await this.prismaService.account.update({
+        where: { id: account.id },
+        data: { twoFaSecret: twoFaCode }, // Store temporarily
+      });
+
+      await this.mailerService.sendMail({
+        to: account.email,
+        subject: 'Your 2FA Code',
+        template: 'confirm',
+        context: {
+          role: account.role,
+          code: twoFaCode,
+        },
+      });
+
+      return { accessToken, refreshToken, message: 'verify: fail' };
+    }
+
+    await this.prismaService.account.update({
+      where: { id: account.id },
+      data: { refreshToken }, // Cập nhật refreshToken
+    });
+
+    return { accessToken, refreshToken, message: 'verify: true' };
   }
 
-  async verifyTwoFa(verify2FA: WithCurrentUser<IVerify2FA>): Promise<Token> {
-    const { code } = verify2FA; // Lấy mã từ verify2FA
+  async verifyTwoFa(
+    verify2FA: WithCurrentUser<IVerify2FA>,
+    userAgent: string,
+  ): Promise<Token> {
+    const { code } = verify2FA;
     const { currentUser } = verify2FA;
 
     const account = await this.prismaService.account.findUnique({
       where: { id: currentUser.id },
     });
 
-    // Kiểm tra xem tài khoản có tồn tại và mã 2FA có đúng không
-    if (!account || account.twoFaSecret !== code) {
-      throw new UnauthorizedException('Invalid 2FA code');
+    if (!account) {
+      throw new BadRequestException(API_ERROR_MSG.userNotFound);
     }
 
-    // Xóa mã 2FA sau khi xác thực thành công
-    await this.prismaService.account.update({
-      where: { id: account.id },
-      data: { twoFaSecret: null }, // Xóa mã 2FA sau khi xác thực
-    });
+    // Kiểm tra mã 2FA
+    if (account.twoFaSecret !== code) {
+      throw new BadRequestException(API_ERROR_MSG.invalidCode);
+    }
 
-    // Tạo access token và refresh token
+    // Tạo access token và refresh token mới
     const { accessToken, refreshToken } = this.signTokens(
       account.id,
       account.email,
       account.role,
     );
 
-    // Cập nhật refresh token vào cơ sở dữ liệu nếu cần
+    // Cập nhật refresh token, lastVerifiedAt và trustedDevice vào cơ sở dữ liệu
     await this.prismaService.account.update({
       where: { id: account.id },
-      data: { refreshToken },
+      data: {
+        refreshToken,
+        lastVerifiedAt: new Date(),
+        trustedDevice: { push: userAgent },
+      },
     });
 
-    return { accessToken, refreshToken }; // Trả về token
+    return { accessToken, refreshToken };
   }
 
   async register(email: string, username: string, password: string) {
@@ -246,14 +264,15 @@ export class AuthService {
 
   // Hàm tạo token
   private signTokens(accountId: string, email: string, role: string): Token {
-    console.log(
-      'JWT_ACCESS_TOKEN_TTL:',
-      this.configService.get('JWT_ACCESS_TOKEN_TTL'),
-    );
     const accessToken = this.jwtService.sign(
       { id: accountId, email: email, role: role },
       { expiresIn: this.configService.get('JWT_ACCESS_TOKEN_TTL') + 's' }, // Thời gian hết hạn cho access token
     );
+
+    // const decoded = jwt.decode(accessToken) as jwt.JwtPayload;
+    // console.log('Decoded:', decoded);
+    // console.log('Token expiration time:', new Date(decoded.exp * 1000));
+    // console.log('Current time:', new Date());
 
     const refreshToken = this.jwtService.sign(
       { id: accountId },
@@ -279,5 +298,24 @@ export class AuthService {
   // Generate a random 2FA code
   private generate2FACode(): string {
     return Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit code
+  }
+
+  private async checkTrustedDevice({
+    account,
+    userAgent,
+  }: { account: Account } & { userAgent: string }): Promise<boolean> {
+    const isTrustedDevice = account?.trustedDevice?.some((device) =>
+      device.includes(userAgent),
+    );
+
+    if (!isTrustedDevice) return false;
+
+    const now = new Date().getTime();
+    const lastVerifiedAt = account.lastVerifiedAt?.getTime();
+
+    // Kiểm tra xem thời gian xác thực cuối cùng có trong khoảng 1 tuần không
+    const isWithinOneWeek = now - lastVerifiedAt < this.ONE_WEEK;
+
+    return isWithinOneWeek;
   }
 }
