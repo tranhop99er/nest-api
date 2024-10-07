@@ -15,13 +15,42 @@ import { AuthService } from './auth.service';
 import { Account } from '@prisma/client';
 import { UserPayload } from 'src/common/strategies/jwt-payload.interface';
 import { Confirm2FaDto } from './dto';
-import { ActiveUser } from 'src/common/decorators';
+import { ActiveUser, Public } from 'src/common/decorators';
 import { JwtAuthGuard } from 'src/common/guards/authentication/authentication.guard';
 import { API_COMMON_MSG } from 'src/common/constants/default-message';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Post('refresh-token')
+  @HttpCode(HttpStatus.OK)
+  async refresh(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const { refreshTokenCookieName } =
+      await this.authService.getCookiesNameFromRequest(request);
+    const currentRefreshToken = request.cookies[refreshTokenCookieName];
+
+    // Kiểm tra nếu refresh token hiện tại không có
+    if (!currentRefreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+
+    // Gọi phương thức refresh trong AuthService
+    const { accessToken, refreshToken } =
+      await this.authService.refreshToken(currentRefreshToken);
+
+    // Thiết lập cookie cho accessToken và refreshToken mới
+    this.authService.setTokensInCookies(
+      { accessToken, refreshToken },
+      response,
+    );
+
+    return { accessToken: accessToken, refreshToken: refreshToken };
+  }
 
   @UseGuards(JwtAuthGuard)
   @Post('confirm-2fa')

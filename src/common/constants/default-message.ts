@@ -15,4 +15,5 @@ export const API_COMMON_MSG = {
   forbidden: 'Forbidden',
   unauthorize: 'Authorization required',
   userNotFound: 'User not found',
+  accountDisable: 'account status is inactive',
 };

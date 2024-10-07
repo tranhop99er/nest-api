@@ -1,5 +1,9 @@
 // src/auth/auth.service.ts
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Account } from '@prisma/client';
 import * as argon2 from 'argon2';
@@ -16,6 +20,7 @@ import {
   extractSiteKeyFromUrl,
 } from 'src/common/utils';
 import { ConfigService } from '@nestjs/config';
+import { JwtPayload } from 'jsonwebtoken';
 
 @Injectable()
 export class AuthService {
@@ -145,6 +150,42 @@ export class AuthService {
       email: user.email,
       role: user.role,
     };
+  }
+
+  async refreshToken(refreshToken: string): Promise<Token> {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
+
+    const payload: JwtPayload = await this.jwtService
+      .verifyAsync(refreshToken)
+      .catch(() => {
+        throw new UnauthorizedException('Invalid refresh token');
+      });
+
+    const account = await this.prismaService.account.findUnique({
+      where: { id: payload.id },
+    });
+
+    // Kiểm tra trạng thái tài khoản
+    if (!account || account?.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'Refresh token is invalid or account status INACTIVE',
+      );
+    }
+
+    const { accessToken, refreshToken: newRefreshToken } = this.signTokens(
+      account.id,
+      account.email,
+      account.role,
+    );
+
+    await this.prismaService.account.update({
+      where: { id: account.id },
+      data: { refreshToken: newRefreshToken },
+    });
+
+    return { accessToken, refreshToken: newRefreshToken };
   }
 
   async getCookiesNameFromRequest(request: Request): Promise<{
