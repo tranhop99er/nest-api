@@ -14,7 +14,11 @@ import { JwtAuthGuard } from 'src/common/guards/authentication/authentication.gu
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: process.env.JWT_ACCESS_TOKEN_TTL },
+      signOptions: {
+        expiresIn: process.env.JWT_ACCESS_TOKEN_TTL
+          ? process.env.JWT_ACCESS_TOKEN_TTL + 's'
+          : '3600s',
+      },
     }),
   ],
   controllers: [AuthController],

@@ -27,21 +27,6 @@ export class AuthService {
   ) {}
   private readonly ONE_WEEK = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
-  // Hàm tạo token
-  private signTokens(accountId: string, email: string, role: string): Token {
-    const accessToken = this.jwtService.sign(
-      { id: accountId, email: email, role: role },
-      { expiresIn: this.configService.get('JWT_ACCESS_TOKEN_TTL') }, // Thời gian hết hạn cho access token
-    );
-
-    const refreshToken = this.jwtService.sign(
-      { id: accountId },
-      { expiresIn: this.configService.get('JWT_REFRESH_TOKEN_TTL') }, // Thời gian hết hạn cho refresh token
-    );
-
-    return { accessToken, refreshToken };
-  }
-
   async login(email: string, password: string): Promise<Token> {
     // Sử dụng phương thức validateAccount để tìm tài khoản
     const account = await this.validateAccount(email, password);
@@ -216,6 +201,25 @@ export class AuthService {
       httpOnly: true,
       maxAge: this.ONE_WEEK, // 7 days
     });
+  }
+
+  // Hàm tạo token
+  private signTokens(accountId: string, email: string, role: string): Token {
+    console.log(
+      'JWT_ACCESS_TOKEN_TTL:',
+      this.configService.get('JWT_ACCESS_TOKEN_TTL'),
+    );
+    const accessToken = this.jwtService.sign(
+      { id: accountId, email: email, role: role },
+      { expiresIn: this.configService.get('JWT_ACCESS_TOKEN_TTL') + 's' }, // Thời gian hết hạn cho access token
+    );
+
+    const refreshToken = this.jwtService.sign(
+      { id: accountId },
+      { expiresIn: this.configService.get('JWT_REFRESH_TOKEN_TTL') + 's' }, // Thời gian hết hạn cho refresh token
+    );
+
+    return { accessToken, refreshToken };
   }
 
   private async validateAccount(

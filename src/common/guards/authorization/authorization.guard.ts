@@ -20,6 +20,7 @@ export class AuthorizationGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
+
     if (!contextRoles) {
       return true;
     }

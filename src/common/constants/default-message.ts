@@ -14,4 +14,5 @@ export const API_COMMON_MSG = {
   badRequest: 'Bad request',
   forbidden: 'Forbidden',
   unauthorize: 'Authorization required',
+  userNotFound: 'User not found',
 };

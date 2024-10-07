@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@golevelup/ts-jest':
+        specifier: ^0.5.0
+        version: 0.5.6
       '@nestjs-modules/ioredis':
         specifier: ^2.0.2
         version: 2.0.2(@nestjs/common@10.4.4(class-transformer@0.5.1)(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@10.4.4)(@prisma/client@5.20.0(prisma@5.20.0))(ioredis@5.4.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
@@ -62,6 +65,9 @@ importers:
       ioredis:
         specifier: ^5.4.1
         version: 5.4.1
+      jsonwebtoken:
+        specifier: ^9.0.2
+        version: 9.0.2
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -111,6 +117,9 @@ importers:
       '@types/jest':
         specifier: ^29.5.2
         version: 29.5.13
+      '@types/jsonwebtoken':
+        specifier: ^9.0.7
+        version: 9.0.7
       '@types/lodash':
         specifier: ^4.17.7
         version: 4.17.10
@@ -464,6 +473,9 @@ packages:
   '@eslint/js@8.57.1':
     resolution: {integrity: sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+
+  '@golevelup/ts-jest@0.5.6':
+    resolution: {integrity: sha512-QnxP42Qu9M2UogdrF2kxpZcgWeW9R3WoUr+LdpcsbkvX3LjEoDYgrJ/PnV/QUCbxB1gaKbhR0ZxlDxE1cPkpDg==}
 
   '@humanwhocodes/config-array@0.13.0':
     resolution: {integrity: sha512-DZLEEqFWQFiyK6h5YIeynKx7JlvCYWL0cImfSRXZ9l4Sg2efkFGTuFf6vzXjK1cq6IYkU+Eg/JizXw+TD2vRNw==}
@@ -932,6 +944,9 @@ packages:
 
   '@types/jsonwebtoken@9.0.5':
     resolution: {integrity: sha512-VRLSGzik+Unrup6BsouBeHsf4d1hOEgYWTm/7Nmw1sXoN1+tRly/Gy/po3yeahnP4jfnQWWAhQAqcNfH7ngOkA==}
+
+  '@types/jsonwebtoken@9.0.7':
+    resolution: {integrity: sha512-ugo316mmTYBl2g81zDFnZ7cfxlut3o+/EQdaP7J8QN2kY6lJ22hmQYCK5EHcJHbrW+dkCGSCPgbG8JtYj6qSrg==}
 
   '@types/lodash@4.17.10':
     resolution: {integrity: sha512-YpS0zzoduEhuOWjAotS6A5AVCva7X4lVlYLF0FYHAY9sdraBfnatttHItlWeZdGhuEkf+OzMNg2ZYAx8t+52uQ==}
@@ -4280,6 +4295,8 @@ snapshots:
 
   '@eslint/js@8.57.1': {}
 
+  '@golevelup/ts-jest@0.5.6': {}
+
   '@humanwhocodes/config-array@0.13.0':
     dependencies:
       '@humanwhocodes/object-schema': 2.0.3
@@ -4902,6 +4919,10 @@ snapshots:
     dependencies:
       '@types/node': 20.16.10
 
+  '@types/jsonwebtoken@9.0.7':
+    dependencies:
+      '@types/node': 20.16.10
+
   '@types/lodash@4.17.10': {}
 
   '@types/methods@1.1.4': {}
@@ -4930,7 +4951,7 @@ snapshots:
 
   '@types/passport-jwt@4.0.1':
     dependencies:
-      '@types/jsonwebtoken': 9.0.5
+      '@types/jsonwebtoken': 9.0.7
       '@types/passport-strategy': 0.2.38
 
   '@types/passport-strategy@0.2.38':

@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 
@@ -12,11 +17,21 @@ export class JwtAuthGuard implements CanActivate {
     if (!token) {
       return false;
     }
+
     try {
       const payload = await this.jwtService.verifyAsync(token);
+
       request.user = payload;
       return true;
     } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        // const decoded = jwt.decode(token) as jwt.JwtPayload;
+        // console.log('Decoded:', decoded);
+        // console.log('Token expiration time:', new Date(decoded.exp * 1000));
+        // console.log('Current time:', new Date());
+        // console.error('Access token expired');
+        throw new ForbiddenException('Token expired');
+      }
       return false;
     }
   }
