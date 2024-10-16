@@ -1,7 +1,6 @@
-import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
+import { confirm2FaSchema } from 'src/packages/zod-schema';
 
-export const Confirm2FaDtoSchema = z.object({
-  code: z.string().length(6),
-});
+class Confirm2FaDto extends createZodDto(confirm2FaSchema) {}
 
-export type Confirm2FaDto = z.infer<typeof Confirm2FaDtoSchema>;
+export { Confirm2FaDto };
