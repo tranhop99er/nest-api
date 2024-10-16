@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { DEFAULT_RESPONSE } from 'src/common/constants/default-message';
+import { DEFAULT_RESPONSE } from 'src/packages/messages/default-message';
 
 @Catch()
 export class GlobalFilter implements ExceptionFilter {

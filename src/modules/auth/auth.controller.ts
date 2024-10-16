@@ -16,9 +16,12 @@ import {
   UserCurrent,
   UserPayload,
 } from 'src/common/strategies/jwt-payload.interface';
-import { Confirm2FaDto } from './dto';
-import { ActiveUser, Public } from 'src/common/decorators';
+import { Confirm2FaDto, LoginDto } from './dto';
+import { ActiveUser, Public, ZodPipe } from 'src/common/decorators';
 import { JwtAuthGuard } from 'src/common/guards/authentication/authentication.guard';
+import { RegisterDto } from './dto/register.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -26,12 +29,10 @@ export class AuthController {
 
   @Post('register')
   async register(
-    @Body('email') email: string,
-    @Body('username') username: string,
-    @Body('password') password: string,
+    @Body() registerDto: RegisterDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.authService.register(email, username, password);
+    const result = await this.authService.register(registerDto);
     await this.authService.setTokensInCookies(result, response);
     return { message: result.message };
   }
@@ -51,6 +52,32 @@ export class AuthController {
       { currentUser, code: confirm2faDto.code },
       userAgent,
     );
+
+    // Set access token và refresh token vào cookies
+    this.authService.setTokensInCookies(
+      { accessToken, refreshToken },
+      response,
+    );
+
+    return { message: '2FA confirmed successfully' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('register/confirm-2fa')
+  @HttpCode(HttpStatus.OK)
+  async confirm2faRegister(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() confirm2faDto: Confirm2FaDto,
+    @ActiveUser() currentUser: UserPayload,
+  ) {
+    const userAgent = request.headers['user-agent'];
+    // Gọi hàm verifyTwoFa từ authService, truyền currentUser, code, và userAgent riêng biệt
+    const { accessToken, refreshToken } =
+      await this.authService.verifyTwoFa_RegisterNewAccount(
+        { currentUser, code: confirm2faDto.code },
+        userAgent,
+      );
 
     // Set access token và refresh token vào cookies
     this.authService.setTokensInCookies(
@@ -93,12 +120,11 @@ export class AuthController {
   @Post('login')
   async login(
     @Req() request: Request,
-    @Body('email') email: string,
-    @Body('password') password: string,
     @Res({ passthrough: true }) response: Response,
+    @Body(ZodPipe(LoginDto)) loginDto: LoginDto,
   ) {
     const userAgent = request.headers['user-agent'];
-    const result = await this.authService.login(email, password, userAgent);
+    const result = await this.authService.login({ ...loginDto, userAgent });
 
     this.authService.setTokensInCookies(result, response);
     return { message: result.message };
@@ -110,6 +136,20 @@ export class AuthController {
   async getCurrent(@ActiveUser('id') userId: string): Promise<UserCurrent> {
     const user = await this.authService.getCurrentUser(userId);
     return user;
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 
   // @UseGuards(JwtAuthGuard)

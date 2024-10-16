@@ -21,7 +21,12 @@ import {
 } from 'src/common/utils';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from 'jsonwebtoken';
-import { API_ERROR_MSG } from 'src/common/messages';
+import { ILogin } from './interfaces/login.interface';
+import { API_ERROR_MSG } from 'src/packages/messages';
+import { RegisterDto } from './dto/register.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { mappingPageUrl } from 'src/common/utils/mapping-page-url';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 // import * as jwt from 'jsonwebtoken';
 
 @Injectable()
@@ -33,17 +38,16 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
   private readonly ONE_WEEK = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+  private readonly TWO_MINUTES = 2 * 60 * 1000; // 2 minutes in milliseconds
 
-  async login(
-    email: string,
-    password: string,
-    userAgent: string,
-  ): Promise<Token & { message: string }> {
+  async login(args: ILogin): Promise<Token & { message: string }> {
+    const { email, password, userAgent } = args;
+
     // Sử dụng phương thức validateAccount để tìm tài khoản
     const account = await this.validateAccount(email, password);
 
     if (!account) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new BadRequestException(API_ERROR_MSG.wrongEmailOrPassword);
     }
 
     // Tạo access token và refresh token
@@ -66,7 +70,10 @@ export class AuthService {
       // Store the 2FA code temporarily in the database
       await this.prismaService.account.update({
         where: { id: account.id },
-        data: { twoFaSecret: twoFaCode }, // Store temporarily
+        data: {
+          twoFaSecret: twoFaCode,
+          expiresAtTwoFaSecret: new Date(Date.now() + this.TWO_MINUTES),
+        }, // Store temporarily
       });
 
       await this.mailerService.sendMail({
@@ -94,8 +101,7 @@ export class AuthService {
     verify2FA: WithCurrentUser<IVerify2FA>,
     userAgent: string,
   ): Promise<Token> {
-    const { code } = verify2FA;
-    const { currentUser } = verify2FA;
+    const { currentUser, code } = verify2FA;
 
     const account = await this.prismaService.account.findUnique({
       where: { id: currentUser.id },
@@ -106,7 +112,10 @@ export class AuthService {
     }
 
     // Kiểm tra mã 2FA
-    if (account.twoFaSecret !== code) {
+    if (
+      account.twoFaSecret !== code ||
+      account.expiresAtTwoFaSecret < new Date()
+    ) {
       throw new BadRequestException(API_ERROR_MSG.invalidCode);
     }
 
@@ -117,25 +126,29 @@ export class AuthService {
       account.role,
     );
 
+    // Kiểm tra thiết bị đã tồn tại trong danh sách `trustedDevice`
+    const isDeviceTrusted = account.trustedDevice.includes(userAgent);
+
     // Cập nhật refresh token, lastVerifiedAt và trustedDevice vào cơ sở dữ liệu
     await this.prismaService.account.update({
       where: { id: account.id },
       data: {
         refreshToken,
         lastVerifiedAt: new Date(),
-        trustedDevice: { push: userAgent },
+        trustedDevice: isDeviceTrusted
+          ? account.trustedDevice
+          : { push: userAgent }, // Chỉ thêm thiết bị nếu chưa tồn tại
+        twoFaSecret: null,
+        expiresAtTwoFaSecret: null,
       },
     });
 
     return { accessToken, refreshToken };
   }
 
-  async register(
-    email: string,
-    username: string,
-    password: string,
-  ): Promise<Token & { message: string }> {
+  async register(args: RegisterDto): Promise<Token & { message: string }> {
     return await this.prismaService.$transaction(async (prisma) => {
+      const { email, username, password } = args;
       // Kiểm tra xem tài khoản đã tồn tại chưa
       const existingAccount = await prisma.account.findUnique({
         where: { email },
@@ -161,7 +174,7 @@ export class AuthService {
           password: hashedPassword,
           role: 'USER',
           twoFaSecret: twoFaCode,
-          // expiresAt: new Date(Date.now() + 2 * 60 * 1000), // Thời gian hết hạn 2 phút
+          expiresAtTwoFaSecret: new Date(Date.now() + this.TWO_MINUTES), // Thời gian hết hạn 2 phút
           user: {
             create: {}, // Tạo liên kết user
           },
@@ -198,25 +211,131 @@ export class AuthService {
     });
   }
 
-  async verifyRegistrationCode(email: string, code: string): Promise<Account> {
-    const accountCurrent = await this.prismaService.account.findFirst({
-      where: {
-        email,
-        twoFaSecret: code,
-        // expiresAt: { gte: new Date() }, // Kiểm tra xem mã có hết hạn hay không
+  async verifyTwoFa_RegisterNewAccount(
+    verify2FA: WithCurrentUser<IVerify2FA>,
+    userAgent: string,
+  ): Promise<Token> {
+    const { currentUser, code } = verify2FA;
+
+    const account = await this.prismaService.account.findUnique({
+      where: { id: currentUser.id },
+    });
+
+    if (!account) {
+      throw new BadRequestException(API_ERROR_MSG.userNotFound);
+    }
+
+    // Kiểm tra mã 2FA
+    if (
+      account.twoFaSecret !== code ||
+      account.expiresAtTwoFaSecret < new Date()
+    ) {
+      await this.prismaService.account.delete({
+        where: { id: account.id },
+      });
+      throw new BadRequestException(API_ERROR_MSG.invalidCode);
+    }
+
+    // Tạo access token và refresh token mới
+    const { accessToken, refreshToken } = this.signTokens(
+      account.id,
+      account.email,
+      account.role,
+    );
+
+    // Kiểm tra thiết bị đã tồn tại trong danh sách `trustedDevice`
+    const isDeviceTrusted = account.trustedDevice.includes(userAgent);
+
+    // Cập nhật refresh token, lastVerifiedAt và trustedDevice vào cơ sở dữ liệu
+    await this.prismaService.account.update({
+      where: { id: account.id },
+      data: {
+        refreshToken,
+        lastVerifiedAt: new Date(),
+        trustedDevice: isDeviceTrusted
+          ? account.trustedDevice
+          : { push: userAgent }, // Chỉ thêm thiết bị nếu chưa tồn tại
+        twoFaSecret: null,
+        expiresAtTwoFaSecret: null,
       },
     });
 
-    if (!accountCurrent) {
+    return { accessToken, refreshToken };
+  }
+
+  async forgotPassword(args: ForgotPasswordDto): Promise<{ message: string }> {
+    const { email } = args;
+    // Kiểm tra xem tài khoản đã tồn tại chưa
+    const account = await this.prismaService.account.findUnique({
+      where: { email, status: 'ACTIVE' },
+    });
+
+    if (!account) {
+      throw new BadRequestException(API_ERROR_MSG.accountNotExist);
+    }
+
+    //Tao mã xác minh 2FA
+    const twoFaCode = this.generate2FACode();
+
+    await this.prismaService.account.update({
+      where: { email },
+      data: {
+        twoFaSecret: twoFaCode,
+        expiresAtTwoFaSecret: new Date(Date.now() + this.TWO_MINUTES), // Thời gian hết hạn 2 phút
+      },
+    });
+
+    const url = mappingPageUrl[account.role];
+
+    // Gửi email mã xác minh
+    this.mailerService.sendMail({
+      to: email,
+      subject: 'Resest Password',
+      template: 'forgot-password',
+      context: {
+        name: account.username,
+        url,
+        code: twoFaCode,
+      },
+    });
+
+    return {
+      message: 'Reset password link sent to your email.',
+    };
+  }
+
+  async resetPassword(args: ResetPasswordDto): Promise<{ message: string }> {
+    const { password, code } = args;
+
+    // Kiểm tra mã xác minh (2FA code)
+    const account = await this.prismaService.account.findFirst({
+      where: {
+        twoFaSecret: code,
+        expiresAtTwoFaSecret: { gte: new Date() }, // Kiểm tra xem mã có hết hạn hay không
+        status: 'ACTIVE',
+      },
+    });
+
+    if (!account) {
       throw new BadRequestException('Invalid or expired verification code.');
     }
 
-    // Xóa mã xác nhận sau khi tạo tài khoản
-    await this.prismaService.account.delete({
-      where: { id: accountCurrent.id },
+    // Mã hóa mật khẩu mới
+    const hashedPassword = await argon2.hash(password);
+
+    // Cập nhật mật khẩu mới và xóa mã xác minh
+    await this.prismaService.account.update({
+      where: { email: account.email },
+      data: {
+        password: hashedPassword,
+        twoFaSecret: null, // Xóa mã xác minh sau khi đặt lại mật khẩu thành công
+        expiresAtTwoFaSecret: null,
+        lastVerifiedAt: null,
+        trustedDevice: null,
+      },
     });
 
-    return accountCurrent;
+    return { message: 'Password has been reset successfully' };
   }
 
   async getCurrentUser(userId: string): Promise<UserCurrent | null> {
