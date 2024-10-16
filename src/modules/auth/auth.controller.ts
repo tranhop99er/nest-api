@@ -148,8 +148,12 @@ export class AuthController {
   @Public()
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    return this.authService.resetPassword(resetPasswordDto);
+  async resetPassword(
+    @Req() request: Request,
+    @Body() resetPasswordDto: ResetPasswordDto,
+  ) {
+    const userAgent = request.headers['user-agent'];
+    return this.authService.resetPassword(resetPasswordDto, userAgent);
   }
 
   // @UseGuards(JwtAuthGuard)

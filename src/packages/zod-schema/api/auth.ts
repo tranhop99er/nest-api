@@ -1,3 +1,4 @@
+import { ERROR_MESSAGE } from 'src/packages/messages';
 import { z } from 'zod';
 
 export const loginSchema = z.object({
@@ -19,7 +20,24 @@ export const forgotPasswordSchema = z.object({
   email: z.string().email(),
 });
 
+export const resetPasswordSchema = z
+  .object({
+    password: z.string().length(6),
+    confirmPassword: z.string().length(6),
+    code: z.string().optional(),
+  })
+  .superRefine(({ confirmPassword, password }, ctx) => {
+    if (confirmPassword !== password) {
+      ctx.addIssue({
+        code: 'custom',
+        message: ERROR_MESSAGE.notSamePassword,
+        path: ['confirmPassword'],
+      });
+    }
+  });
+
 type loginSchema = z.infer<typeof loginSchema>;
 type registerSchema = z.infer<typeof registerSchema>;
 type forgotPasswordSchema = z.infer<typeof forgotPasswordSchema>;
 type confirm2FaSchema = z.infer<typeof confirm2FaSchema>;
+type resetPasswordSchema = z.infer<typeof resetPasswordSchema>;

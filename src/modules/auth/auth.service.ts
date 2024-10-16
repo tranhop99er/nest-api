@@ -304,7 +304,10 @@ export class AuthService {
     };
   }
 
-  async resetPassword(args: ResetPasswordDto): Promise<{ message: string }> {
+  async resetPassword(
+    args: ResetPasswordDto,
+    userAgent: string,
+  ): Promise<{ message: string }> {
     const { password, code } = args;
 
     // Kiểm tra mã xác minh (2FA code)
@@ -323,15 +326,20 @@ export class AuthService {
     // Mã hóa mật khẩu mới
     const hashedPassword = await argon2.hash(password);
 
+    // Kiểm tra thiết bị đã tồn tại trong danh sách `trustedDevice`
+    const isDeviceTrusted = account.trustedDevice.includes(userAgent);
+
     // Cập nhật mật khẩu mới và xóa mã xác minh
     await this.prismaService.account.update({
       where: { email: account.email },
       data: {
         password: hashedPassword,
         twoFaSecret: null, // Xóa mã xác minh sau khi đặt lại mật khẩu thành công
+        trustedDevice: isDeviceTrusted
+          ? account.trustedDevice
+          : { push: userAgent }, // Chỉ thêm thiết bị nếu chưa tồn tại
         expiresAtTwoFaSecret: null,
         lastVerifiedAt: null,
-        trustedDevice: null,
       },
     });
 

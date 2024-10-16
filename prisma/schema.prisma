@@ -17,7 +17,7 @@ model Account {
   updatedAt            DateTime      @updatedAt
   twoFaSecret          String?
   lastVerifiedAt       DateTime?
-  trustedDevice        String[]      @default([])
+  trustedDevice        String[]     @default([])
   twoFaEnabled         Boolean       @default(false)
   role                 Role // Role determines if the account is ADMIN, USER, or ADMIN_CS
   expiresAtTwoFaSecret DateTime? // Two factor authentication secret expiration time
