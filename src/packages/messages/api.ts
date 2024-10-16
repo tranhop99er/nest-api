@@ -7,6 +7,7 @@ export const API_ERROR_MSG = {
   incorrectPassword: 'Incorrect password',
   emailNotFound: 'Email not found',
   invalidCode: 'Invalid code',
+  accountNotExist: 'Account does not exist',
 };
 
 export const ERROR_MESSAGE = {

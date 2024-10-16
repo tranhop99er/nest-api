@@ -20,6 +20,8 @@ import { Confirm2FaDto, LoginDto } from './dto';
 import { ActiveUser, Public, ZodPipe } from 'src/common/decorators';
 import { JwtAuthGuard } from 'src/common/guards/authentication/authentication.guard';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -134,6 +136,24 @@ export class AuthController {
   async getCurrent(@ActiveUser('id') userId: string): Promise<UserCurrent> {
     const user = await this.authService.getCurrentUser(userId);
     return user;
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Req() request: Request,
+    @Body() resetPasswordDto: ResetPasswordDto,
+  ) {
+    const userAgent = request.headers['user-agent'];
+    return this.authService.resetPassword(resetPasswordDto, userAgent);
   }
 
   // @UseGuards(JwtAuthGuard)
