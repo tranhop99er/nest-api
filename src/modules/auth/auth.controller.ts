@@ -12,8 +12,10 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
-import { Account } from '@prisma/client';
-import { UserPayload } from 'src/common/strategies/jwt-payload.interface';
+import {
+  UserCurrent,
+  UserPayload,
+} from 'src/common/strategies/jwt-payload.interface';
 import { Confirm2FaDto } from './dto';
 import { ActiveUser, Public } from 'src/common/decorators';
 import { JwtAuthGuard } from 'src/common/guards/authentication/authentication.guard';
@@ -21,6 +23,18 @@ import { JwtAuthGuard } from 'src/common/guards/authentication/authentication.gu
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Post('register')
+  async register(
+    @Body('email') email: string,
+    @Body('username') username: string,
+    @Body('password') password: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.register(email, username, password);
+    await this.authService.setTokensInCookies(result, response);
+    return { message: result.message };
+  }
 
   @UseGuards(JwtAuthGuard)
   @Post('confirm-2fa')
@@ -76,15 +90,6 @@ export class AuthController {
     return { accessToken: accessToken, refreshToken: refreshToken };
   }
 
-  @Post('register')
-  async register(
-    @Body('email') email: string,
-    @Body('username') username: string,
-    @Body('password') password: string,
-  ): Promise<Account> {
-    return this.authService.register(email, username, password);
-  }
-
   @Post('login')
   async login(
     @Req() request: Request,
@@ -102,7 +107,7 @@ export class AuthController {
   @Get('current')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  async getCurrent(@ActiveUser('id') userId: string): Promise<UserPayload> {
+  async getCurrent(@ActiveUser('id') userId: string): Promise<UserCurrent> {
     const user = await this.authService.getCurrentUser(userId);
     return user;
   }

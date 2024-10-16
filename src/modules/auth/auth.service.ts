@@ -12,7 +12,7 @@ import { Token } from './interfaces/token.interface';
 import { Response, Request } from 'express';
 import { MailerService } from '@nestjs-modules/mailer';
 import { WithCurrentUser } from 'src/common/types';
-import { UserPayload } from 'src/common/strategies/jwt-payload.interface';
+import { UserCurrent } from 'src/common/strategies/jwt-payload.interface';
 import { IVerify2FA } from './interfaces';
 import {
   mappingAccessTokenCookie,
@@ -130,28 +130,96 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async register(email: string, username: string, password: string) {
-    const hashedPassword = await argon2.hash(password);
+  async register(
+    email: string,
+    username: string,
+    password: string,
+  ): Promise<Token & { message: string }> {
+    return await this.prismaService.$transaction(async (prisma) => {
+      // Kiểm tra xem tài khoản đã tồn tại chưa
+      const existingAccount = await prisma.account.findUnique({
+        where: { email },
+      });
 
-    const account = await this.prismaService.account.create({
-      data: {
-        email,
-        username,
-        password: hashedPassword,
-        role: 'USER',
-        user: {
-          create: {},
+      if (existingAccount) {
+        throw new BadRequestException(
+          'Account with this email already exists.',
+        );
+      }
+
+      //Tao mã xác minh 2FA
+      const twoFaCode = this.generate2FACode();
+
+      // Mã hóa mật khẩu
+      const hashedPassword = await argon2.hash(password);
+
+      // Lưu dữ liệu vào cơ sở dữ liệu trong transaction
+      const newAccount = await prisma.account.create({
+        data: {
+          email,
+          username,
+          password: hashedPassword,
+          role: 'USER',
+          twoFaSecret: twoFaCode,
+          // expiresAt: new Date(Date.now() + 2 * 60 * 1000), // Thời gian hết hạn 2 phút
+          user: {
+            create: {}, // Tạo liên kết user
+          },
         },
-      },
-      include: {
-        user: true,
+        include: {
+          user: true,
+        },
+      });
+
+      // Tạo access token và refresh token
+      const { accessToken, refreshToken } = this.signTokens(
+        newAccount.id,
+        newAccount.email,
+        newAccount.role,
+      );
+
+      // Gửi email mã xác minh
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Your 2FA Code',
+        template: 'confirm',
+        context: {
+          role: 'USER',
+          code: twoFaCode,
+        },
+      });
+
+      return {
+        accessToken,
+        refreshToken,
+        message:
+          'Verification code sent to your email. Please verify to complete registration.',
+      };
+    });
+  }
+
+  async verifyRegistrationCode(email: string, code: string): Promise<Account> {
+    const accountCurrent = await this.prismaService.account.findFirst({
+      where: {
+        email,
+        twoFaSecret: code,
+        // expiresAt: { gte: new Date() }, // Kiểm tra xem mã có hết hạn hay không
       },
     });
 
-    return account;
+    if (!accountCurrent) {
+      throw new BadRequestException('Invalid or expired verification code.');
+    }
+
+    // Xóa mã xác nhận sau khi tạo tài khoản
+    await this.prismaService.account.delete({
+      where: { id: accountCurrent.id },
+    });
+
+    return accountCurrent;
   }
 
-  async getCurrentUser(userId: string): Promise<UserPayload | null> {
+  async getCurrentUser(userId: string): Promise<UserCurrent | null> {
     const user = await this.prismaService.account.findUnique({
       where: { id: userId },
       include: {
@@ -165,6 +233,7 @@ export class AuthService {
 
     return {
       id: user.id,
+      username: user.username,
       email: user.email,
       role: user.role,
     };
