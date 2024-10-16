@@ -1,9 +1,6 @@
-// src/auth/dto/login.dto.ts
-import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
+import { loginSchema } from 'src/packages/zod-schema/api/auth';
 
-export const LoginDtoSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-});
+class LoginDto extends createZodDto(loginSchema) {}
 
-export type LoginDto = z.infer<typeof LoginDtoSchema>;
+export { LoginDto };

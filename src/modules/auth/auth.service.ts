@@ -21,7 +21,9 @@ import {
 } from 'src/common/utils';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from 'jsonwebtoken';
-import { API_ERROR_MSG } from 'src/common/messages';
+import { ILogin } from './interfaces/login.interface';
+import { API_ERROR_MSG } from 'src/packages/messages';
+import { RegisterDto } from './dto/register.dto';
 // import * as jwt from 'jsonwebtoken';
 
 @Injectable()
@@ -34,11 +36,9 @@ export class AuthService {
   ) {}
   private readonly ONE_WEEK = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
-  async login(
-    email: string,
-    password: string,
-    userAgent: string,
-  ): Promise<Token & { message: string }> {
+  async login(args: ILogin): Promise<Token & { message: string }> {
+    const { email, password, userAgent } = args;
+
     // Sử dụng phương thức validateAccount để tìm tài khoản
     const account = await this.validateAccount(email, password);
 
@@ -94,8 +94,7 @@ export class AuthService {
     verify2FA: WithCurrentUser<IVerify2FA>,
     userAgent: string,
   ): Promise<Token> {
-    const { code } = verify2FA;
-    const { currentUser } = verify2FA;
+    const { currentUser, code } = verify2FA;
 
     const account = await this.prismaService.account.findUnique({
       where: { id: currentUser.id },
@@ -130,12 +129,51 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async register(
-    email: string,
-    username: string,
-    password: string,
-  ): Promise<Token & { message: string }> {
+  async verifyTwoFa_RegisterNewAccount(
+    verify2FA: WithCurrentUser<IVerify2FA>,
+    userAgent: string,
+  ): Promise<Token> {
+    const { currentUser, code } = verify2FA;
+
+    const account = await this.prismaService.account.findUnique({
+      where: { id: currentUser.id },
+    });
+
+    if (!account) {
+      throw new BadRequestException(API_ERROR_MSG.userNotFound);
+    }
+
+    // Kiểm tra mã 2FA
+    if (account.twoFaSecret !== code) {
+      await this.prismaService.account.delete({
+        where: { id: account.id },
+      });
+      throw new BadRequestException(API_ERROR_MSG.invalidCode);
+    }
+
+    // Tạo access token và refresh token mới
+    const { accessToken, refreshToken } = this.signTokens(
+      account.id,
+      account.email,
+      account.role,
+    );
+
+    // Cập nhật refresh token, lastVerifiedAt và trustedDevice vào cơ sở dữ liệu
+    await this.prismaService.account.update({
+      where: { id: account.id },
+      data: {
+        refreshToken,
+        lastVerifiedAt: new Date(),
+        trustedDevice: { push: userAgent },
+      },
+    });
+
+    return { accessToken, refreshToken };
+  }
+
+  async register(args: RegisterDto): Promise<Token & { message: string }> {
     return await this.prismaService.$transaction(async (prisma) => {
+      const { email, username, password } = args;
       // Kiểm tra xem tài khoản đã tồn tại chưa
       const existingAccount = await prisma.account.findUnique({
         where: { email },
