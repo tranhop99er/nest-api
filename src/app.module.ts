@@ -7,9 +7,10 @@ import { MailerConfigModule } from './config/modules/mailerConfig.module';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthorizationGuard } from './common/guards/authorization/authorization.guard';
 import * as cookieParser from 'cookie-parser';
+import { LabelModule } from './modules/label/label.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, MailerConfigModule],
+  imports: [PrismaModule, AuthModule, MailerConfigModule, LabelModule],
   controllers: [AppController],
   providers: [
     AppService,
