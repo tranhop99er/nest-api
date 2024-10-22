@@ -17,18 +17,63 @@ model Account {
   updatedAt            DateTime      @updatedAt
   twoFaSecret          String?
   lastVerifiedAt       DateTime?
-  trustedDevice        String[]     @default([])
+  trustedDevice        String[]      @default([])
   twoFaEnabled         Boolean       @default(false)
   role                 Role // Role determines if the account is ADMIN, USER, or ADMIN_CS
   expiresAtTwoFaSecret DateTime? // Two factor authentication secret expiration time
   refreshToken         String? // Stores refresh token if necessary
   user                 User?
+  notes                Note[]        @relation("AccountNotes") // Account can create 1 note at a time (relation)
+  labels               Label[]       @relation("AccountLabels") // Account can create 1 label at a time (relation)
+  sharedNotes          SharedNote[] // Relation with SharedNote (many-to-many)
+  Note                 Note[]
 }
 
 model User {
   id        String  @id @default(cuid())
   account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
   accountId String  @unique // Ensure one-to-one relation with Account
+}
+
+model Label {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  createdBy   Account     @relation(fields: [createdById], references: [id], onDelete: Cascade, name: "AccountLabels")
+  createdById String
+  status      LabelStatus @default(ACTIVE) //active, inactive
+  notes       NoteLabel[] // Many-to-many relation with Note through NoteLabel
+}
+
+model Note {
+  id          String       @id @default(cuid())
+  content     String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  createdBy   Account      @relation(fields: [createdById], references: [id], onDelete: Cascade, name: "AccountNotes")
+  createdById String
+  labels      NoteLabel[] // Many-to-many relation with Label through NoteLabel
+  sharedWith  SharedNote[] // Relation with SharedNote (many-to-many)
+  Account     Account?     @relation(fields: [accountId], references: [id])
+  accountId   String?
+}
+
+model NoteLabel {
+  noteId  String
+  labelId String
+  note    Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, labelId]) // Composite primary key for the many-to-many relationship
+}
+
+model SharedNote {
+  id                String  @id @default(cuid())
+  note              Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  noteId            String
+  sharedWithAccount Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountId         String
 }
 
 enum Role {
@@ -38,6 +83,11 @@ enum Role {
 }
 
 enum AccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum LabelStatus {
   ACTIVE
   INACTIVE
 }
