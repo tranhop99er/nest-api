@@ -118,6 +118,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
   async login(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,

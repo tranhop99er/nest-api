@@ -29,5 +29,6 @@ import { JwtAuthGuard } from 'src/common/guards/authentication/authentication.gu
     ConfigService,
     JwtAuthGuard,
   ],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

@@ -2,18 +2,36 @@ import { MiddlewareConsumer, Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './common/modules/prisma/prisma.module';
-import { AuthModule } from './modules/auth/auth.module';
 import { MailerConfigModule } from './config/modules/mailerConfig.module';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, Reflector } from '@nestjs/core';
 import { AuthorizationGuard } from './common/guards/authorization/authorization.guard';
 import * as cookieParser from 'cookie-parser';
-import { LabelModule } from './modules/label/label.module';
+import { SystemModule } from './modules/system/system.module';
+import { UserModule } from './modules/user/user.module';
+import { JwtAuthGuard } from './common/guards/authentication/authentication.guard';
+import { JwtModule } from '@nestjs/jwt';
+import { jwtConfig } from './config/environment';
 
 @Module({
-  imports: [PrismaModule, AuthModule, MailerConfigModule, LabelModule],
+  imports: [
+    //JwtService is a provider, is it part of the current AppModule
+    {
+      ...JwtModule.registerAsync(jwtConfig.asProvider()),
+      global: true,
+    },
+    PrismaModule,
+    MailerConfigModule,
+    SystemModule,
+    UserModule,
+  ],
   controllers: [AppController],
   providers: [
     AppService,
+    Reflector,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: AuthorizationGuard,
@@ -22,6 +40,6 @@ import { LabelModule } from './modules/label/label.module';
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(cookieParser()).forRoutes('*'); // Áp dụng cookieParser cho tất cả các route
+    consumer.apply(cookieParser()).forRoutes('*');
   }
 }
