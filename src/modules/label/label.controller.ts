@@ -37,9 +37,6 @@ export class LabelController {
     @ActiveUser() currentUser: UserPayload,
     @Body() createLabelDto: CreateLabelDto,
   ) {
-    console.log(111111111111);
-    console.log('currentUser', currentUser);
-    console.log('createLabelDto', createLabelDto);
     return this.labelService.createLabel({ currentUser, ...createLabelDto });
   }
 
