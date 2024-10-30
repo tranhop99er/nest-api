@@ -24,9 +24,15 @@ export class AuthorizationGuard implements CanActivate {
     if (!contextRoles) {
       return true;
     }
-    const user = context.switchToHttp().getRequest()['user'];
 
-    if (contextRoles.some((role) => user.role === role)) {
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+
+    if (!user || !user.role) {
+      throw new ForbiddenException('User information is missing or invalid');
+    }
+
+    if (contextRoles.includes(user.role)) {
       return true;
     } else {
       throw new ForbiddenException(

@@ -8,30 +8,36 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { LabelService } from './label.service';
 import { ActiveUser, Roles } from 'src/common/decorators';
 import { UserPayload } from 'src/common/strategies/jwt-payload.interface';
 import { CreateLabelDto } from './dto';
 import { Role } from '@prisma/client';
+import { JwtAuthGuard } from 'src/common/guards/authentication/authentication.guard';
+// import { RolesGuard } from 'src/common/guards/roles.guard';
+import { AuthorizationGuard } from 'src/common/guards/authorization/authorization.guard';
 
+@Controller()
+@UseGuards(JwtAuthGuard, AuthorizationGuard)
 @Roles(Role.ADMIN, Role.ADMIN_CS)
-@Controller('system/label')
 export class LabelController {
   constructor(private readonly labelService: LabelService) {}
 
   @Delete(':/id')
   @HttpCode(HttpStatus.OK)
-  deleteJob(@ActiveUser() currentUser: UserPayload, @Param() id: string) {
+  deleteLabel(@ActiveUser() currentUser: UserPayload, @Param() id: string) {
     return this.labelService.delLabel({ currentUser, id });
   }
 
   @Post()
   @HttpCode(HttpStatus.OK)
-  createJob(
+  createLabel(
     @ActiveUser() currentUser: UserPayload,
     @Body() createLabelDto: CreateLabelDto,
   ) {
+    console.log(111111111111);
     console.log('currentUser', currentUser);
     console.log('createLabelDto', createLabelDto);
     return this.labelService.createLabel({ currentUser, ...createLabelDto });
@@ -39,7 +45,7 @@ export class LabelController {
 
   @Patch('/:id')
   @HttpCode(HttpStatus.OK)
-  updateJob(
+  updateLabel(
     @ActiveUser() currentUser: UserPayload,
     @Body() createLabelDto: CreateLabelDto,
     @Param() id: string,
@@ -53,7 +59,7 @@ export class LabelController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  getJob(@ActiveUser() currentUser: UserPayload, @Param() id: string) {
+  getLabel(@ActiveUser() currentUser: UserPayload, @Param() id: string) {
     return this.labelService.getLabel({ currentUser, id });
   }
 }

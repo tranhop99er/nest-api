@@ -1,5 +1,6 @@
 import { Role } from '@prisma/client';
 
+export const AUTH_OPTIONS = 'AUTH_OPTIONS';
 export const MAX_FILE_SIZE = 1024 * 1024 * 10;
 export const VALID_UPLOADS_MIME_TYPES = [
   'image/jpeg',
