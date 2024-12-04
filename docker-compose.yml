@@ -9,15 +9,30 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - db-postgres:/var/lib/postgresql/data # Tạo volume để lưu dữ liệu của PostgreSQL
+      - nestjs-postgres:/var/lib/postgresql/data # Tạo volume để lưu dữ liệu của PostgreSQL
 
   redis:
+    container_name: nestjs-redis
     image: redis:latest
     ports:
       - '6379:6379'
     volumes:
-      - db-redis:/data # Tạo volume để lưu dữ liệu của Redis
+      - nestjs-redis:/data # Tạo volume để lưu dữ liệu của Redis
+
+  mongodb:
+    container_name: nestjs-mongodb
+    image: mongo:7.0.2
+    restart: always
+    ports:
+      - '${MONGO_FORWARD_PORT:-27017}:27017'
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+      - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE}
+    volumes:
+      - nestjs-mongodb:/data/db
 
 volumes:
-  db-postgres: # Volume cho PostgreSQL
-  db-redis: # Volume cho Redis
+  nestjs-postgres: # Volume cho PostgreSQL
+  nestjs-redis: # Volume cho Redis
+  nestjs-mongodb: # Volume cho MongoDB
