@@ -166,7 +166,7 @@ export class AuthService {
       // Mã hóa mật khẩu
       const hashedPassword = await argon2.hash(password);
 
-      // Lưu dữ liệu vào cơ sở dữ liệu trong transaction
+      // Save data to the database within a transaction
       const newAccount = await prisma.account.create({
         data: {
           email,
@@ -174,9 +174,9 @@ export class AuthService {
           password: hashedPassword,
           role: 'USER',
           twoFaSecret: twoFaCode,
-          expiresAtTwoFaSecret: new Date(Date.now() + this.TWO_MINUTES), // Thời gian hết hạn 2 phút
+          expiresAtTwoFaSecret: new Date(Date.now() + this.TWO_MINUTES), // Expiration time 2 minutes
           user: {
-            create: {}, // Tạo liên kết user
+            create: {}, // Create user link
           },
         },
         include: {
