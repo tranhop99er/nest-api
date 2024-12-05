@@ -11,6 +11,7 @@ import { UserModule } from './modules/user/user.module';
 import { JwtAuthGuard } from './common/guards/authentication/authentication.guard';
 import { JwtModule } from '@nestjs/jwt';
 import { jwtConfig } from './config/environment';
+import { MongoConfigModule } from './config/modules/mongoConfig.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { jwtConfig } from './config/environment';
       ...JwtModule.registerAsync(jwtConfig.asProvider()),
       global: true,
     },
+    MongoConfigModule,
     PrismaModule,
     MailerConfigModule,
     SystemModule,

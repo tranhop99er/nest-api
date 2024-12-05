@@ -3,6 +3,7 @@ import { RouterModule } from '@nestjs/core';
 import { AuthModule } from '../auth/auth.module';
 import { LabelModule } from '../label/label.module';
 import { AuthController } from '../auth/auth.controller';
+import { AccountModule } from '../account/account.module';
 
 @Module({
   imports: [
@@ -15,6 +16,10 @@ import { AuthController } from '../auth/auth.controller';
           {
             path: 'label',
             module: LabelModule,
+          },
+          {
+            path: 'account',
+            module: AccountModule,
           },
         ],
       },

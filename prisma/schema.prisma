@@ -12,9 +12,14 @@ model Account {
   email                String        @unique
   password             String
   username             String
+  office                       Office?                       @relation(fields: [officeId], references: [id])
+  officeId                     String?
   status               AccountStatus @default(ACTIVE) //active, inactive
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
+  updatedByRef                 Account?                      @relation("UpdatedAccounts", fields: [updatedBy], references: [id])
+  updatedBy                    String?
+  accountsUpdated              Account[]                     @relation("UpdatedAccounts")
   twoFaSecret          String?
   lastVerifiedAt       DateTime?
   trustedDevice        String[]      @default([])
@@ -22,11 +27,65 @@ model Account {
   role                 Role // Role determines if the account is ADMIN, USER, or ADMIN_CS
   expiresAtTwoFaSecret DateTime? // Two factor authentication secret expiration time
   refreshToken         String? // Stores refresh token if necessary
+  officesUpdated               Office[]                      @relation("UpdatedOffices")
+  officesDirecting             Office?                       @relation("OfficeDirecting")
   user                 User?
   notes                Note[]        @relation("AccountNotes") // Account can create 1 note at a time (relation)
   labels               Label[]       @relation("AccountLabels") // Account can create 1 label at a time (relation)
   sharedNotes          SharedNote[] // Relation with SharedNote (many-to-many)
   Note                 Note[]
+    notificationBotTargetAccount NotificationBotTargetAccount?
+
+}
+
+model NotificationBotTargetAccount {
+  notificationBot   NotificationBot @relation(fields: [notificationBotId], references: [id])
+  notificationBotId String
+  account           Account         @relation(fields: [accountId], references: [id])
+  accountId         String          @unique
+
+  @@id([notificationBotId, accountId])
+}
+
+model NotificationBot {
+  id                           String                         @id @default(cuid())
+  office                       Office                         @relation(fields: [officeId], references: [id])
+  officeId                     String                         @unique
+  startDate                    String?
+  endDate                      String?
+  daysOfWeek                   Int[]
+  time                         String?
+  timeZone                     String?
+  content                      String?
+  notificationBotTargetAccount NotificationBotTargetAccount[]
+}
+
+
+
+model Office {
+  id                                 String               @id @default(cuid())
+  businessName                       String               @db.VarChar(255)
+  businessPostalCode                 String
+  businessAddress                    String
+  representative                     String?
+  officeName                         String
+  officePostalCode                   String
+  officeAddress                      String
+  phoneNumber                        String
+  openDate                           DateTime
+  usedAt                             DateTime
+  serviceType                        ServiceType
+  services                           Json?
+  director                           Account              @relation("OfficeDirecting", fields: [directorId], references: [id])
+  directorId                         String               @unique
+  status                             OfficeStatus         @default(ACTIVE)
+  createdAt                          DateTime             @default(now())
+  updatedAt                          DateTime             @updatedAt
+  updatedByRef                       Account?             @relation("UpdatedOffices", fields: [updatedBy], references: [id])
+  updatedBy                          String?
+  account                            Account[]
+  notificationBot                    NotificationBot?
+  capacity                           String?
 }
 
 model User {
@@ -90,4 +149,15 @@ enum AccountStatus {
 enum LabelStatus {
   ACTIVE
   INACTIVE
+}
+
+enum OfficeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ServiceType {
+  OFFICE
+  HOME
+  HYBRID
 }
